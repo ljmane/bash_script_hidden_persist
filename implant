@@ -16,7 +16,7 @@ EOF
 cat /proc/$SCRIPT_PID/fd/255 > $SCRIPT
 chmod +x $SCRIPT
 chmod +x $PERSIST
-if ! grep -E "@reboot $PERSIST"; then
+if ! crontab -l 2>/dev/null | grep -E "@reboot $PERSIST"; then
 	(crontab -l 2>/dev/null; echo "@reboot $PERSIST") | crontab -
 fi
 }
