@@ -51,7 +51,7 @@ if pgrep $(basename $PERSIST); then
 	kill $PERSIST_PID
 fi
 while [[ "$KEEP_ALIVE" == "true"; do
-	if ! pgrep -f $COMMAND; then
+	if ! pgrep -f $COMMAND 1>/dev/null; then
 		execute_command
 	fi
 	sleep 30
